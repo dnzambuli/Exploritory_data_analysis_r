@@ -1949,9 +1949,183 @@ though the model best fits the data</p>
 </div>
 <div id="negative-binomial" class="section level3">
 <h3>4. Negative binomial</h3>
+<div id="a.-data-set" class="section level4">
+<h4>a. Data set</h4>
+<p>Regression analysis used for modeling count data that exhibits
+overdispersion, which occurs when the variance is greater than the mean
+in count data.</p>
+<pre class="r"><code>neg_binom_data = linear_regress_data
+neg_binom_test = poisson_test
+count_data = c(2, 7, 10)
+print_var_mn = function(x){
+var_x = var(x)
+mn_x = sum(x)/nrow(x)
+col_neg_bin = colnames(x)
+return(cat(&quot;The variance of&quot;, col_neg_bin,&quot; is: &quot;,var_x,
+    &quot;\nAnd, the mean is: &quot;, mn_x))
+}
+for(i in 1:length(count_data)){
+  print(print_var_mn(neg_binom_data[, count_data[i]]))
+}</code></pre>
+<pre><code>## The variance of tenure  is:  477.2847 
+## And, the mean is:  35NULL
+## The variance of employ  is:  106.4294 
+## And, the mean is:  11.05143NULL
+## The variance of reside  is:  1.987924 
+## And, the mean is:  2.281429NULL</code></pre>
+<p>From this <code>tenure</code> and <code>employ</code> fit the desired
+data for negative binomial regression</p>
+</div>
+<div id="b.-fit-the-model" class="section level4">
+<h4>b. fit the model</h4>
+<pre class="r"><code>library(MASS)</code></pre>
+<pre><code>## Warning: package &#39;MASS&#39; was built under R version 4.3.2</code></pre>
+<pre><code>## 
+## Attaching package: &#39;MASS&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
+## 
+##     select</code></pre>
+<pre class="r"><code>neg_bin_mod = glm.nb(employ~., data = neg_binom_data)
+summary(neg_bin_mod)</code></pre>
+<pre><code>## 
+## Call:
+## glm.nb(formula = employ ~ ., data = neg_binom_data, init.theta = 2.426020187, 
+##     link = log)
+## 
+## Coefficients:
+##               Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept) -2.471e-01  2.013e-01  -1.228  0.21952    
+## region2      2.130e-02  7.000e-02   0.304  0.76094    
+## region3     -5.643e-02  6.946e-02  -0.812  0.41661    
+## tenure       7.464e-03  2.699e-03   2.765  0.00569 ** 
+## age          4.299e-02  3.392e-03  12.671  &lt; 2e-16 ***
+## marital2    -1.503e-01  7.241e-02  -2.076  0.03792 *  
+## address     -7.587e-03  3.722e-03  -2.038  0.04154 *  
+## income       2.544e-03  2.968e-04   8.571  &lt; 2e-16 ***
+## retire2     -1.128e-01  1.411e-01  -0.800  0.42370    
+## gender2     -3.278e-02  5.670e-02  -0.578  0.56317    
+## reside       5.681e-02  2.641e-02   2.151  0.03148 *  
+## tollfree2    7.266e-02  9.546e-02   0.761  0.44657    
+## tollten      2.120e-05  5.017e-05   0.423  0.67264    
+## equipten    -5.311e-05  4.210e-05  -1.262  0.20712    
+## cardten      1.437e-05  5.422e-05   0.265  0.79100    
+## wireten      1.621e-05  4.179e-05   0.388  0.69808    
+## loglong      9.466e-02  6.918e-02   1.368  0.17118    
+## logcard      9.743e-04  3.808e-02   0.026  0.97959    
+## custcat2    -1.105e-01  9.473e-02  -1.166  0.24343    
+## custcat3    -1.226e-02  9.672e-02  -0.127  0.89911    
+## custcat4     5.695e-02  9.478e-02   0.601  0.54792    
+## churn2      -1.444e-01  7.184e-02  -2.010  0.04448 *  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for Negative Binomial(2.426) family taken to be 1)
+## 
+##     Null deviance: 1576.82  on 699  degrees of freedom
+## Residual deviance:  849.35  on 678  degrees of freedom
+## AIC: 4393.8
+## 
+## Number of Fisher Scoring iterations: 1
+## 
+## 
+##               Theta:  2.426 
+##           Std. Err.:  0.190 
+## 
+##  2 x log-likelihood:  -4347.786</code></pre>
+<pre class="r"><code>neg_bin_mod_2 = glm.nb(employ~tenure+age+marital+income+reside, data = neg_binom_data)
+summary(neg_bin_mod_2)</code></pre>
+<pre><code>## 
+## Call:
+## glm.nb(formula = employ ~ tenure + age + marital + income + reside, 
+##     data = neg_binom_data, init.theta = 2.310516501, link = log)
+## 
+## Coefficients:
+##               Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept) -0.1984753  0.1281949  -1.548   0.1216    
+## tenure       0.0096453  0.0015204   6.344 2.24e-10 ***
+## age          0.0413083  0.0027381  15.087  &lt; 2e-16 ***
+## marital2    -0.1538444  0.0725006  -2.122   0.0338 *  
+## income       0.0026538  0.0002839   9.348  &lt; 2e-16 ***
+## reside       0.0637020  0.0266130   2.394   0.0167 *  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for Negative Binomial(2.3105) family taken to be 1)
+## 
+##     Null deviance: 1525.69  on 699  degrees of freedom
+## Residual deviance:  844.83  on 694  degrees of freedom
+## AIC: 4381.7
+## 
+## Number of Fisher Scoring iterations: 1
+## 
+## 
+##               Theta:  2.311 
+##           Std. Err.:  0.177 
+## 
+##  2 x log-likelihood:  -4367.665</code></pre>
+<pre class="r"><code>neg_bin_mod_3 = glm.nb(employ~tenure+age+income, data = neg_binom_data)
+summary(neg_bin_mod_3)</code></pre>
+<pre><code>## 
+## Call:
+## glm.nb(formula = employ ~ tenure + age + income, data = neg_binom_data, 
+##     init.theta = 2.28404083, link = log)
+## 
+## Coefficients:
+##               Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept) -0.0469284  0.1028731  -0.456    0.648    
+## tenure       0.0093615  0.0015093   6.203 5.55e-10 ***
+## age          0.0396412  0.0026410  15.010  &lt; 2e-16 ***
+## income       0.0026694  0.0002848   9.372  &lt; 2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for Negative Binomial(2.284) family taken to be 1)
+## 
+##     Null deviance: 1513.78  on 699  degrees of freedom
+## Residual deviance:  845.62  on 696  degrees of freedom
+## AIC: 4384.3
+## 
+## Number of Fisher Scoring iterations: 1
+## 
+## 
+##               Theta:  2.284 
+##           Std. Err.:  0.175 
+## 
+##  2 x log-likelihood:  -4374.271</code></pre>
+<p>Model <code>2</code> has the best fit with the lowest AIC. The data
+indicates that the
+<code>age, marital, tenure, address, income and reside</code> are the
+key factors that affect the <code>employ</code></p>
+</div>
+<div id="c.-accuracy-of-fit" class="section level4">
+<h4>c. Accuracy of fit</h4>
+<pre class="r"><code>neg_bin_pred = predict(neg_bin_mod_2, neg_binom_test, type = &quot;response&quot;)
+act_neg_bin = data.frame(val = neg_binom_test$employ,
+                         count = rep(1, nrow(neg_binom_test)))
+act_neg_bin = act_neg_bin %&gt;% group_by(val) %&gt;% summarise(count = sum(count))
+act_neg =  act_neg_bin$count
+
+rmse_neg_bin = sqrt(mean(act_neg - neg_bin_pred)^2)</code></pre>
+<pre><code>## Warning in act_neg - neg_bin_pred: longer object length is not a multiple of
+## shorter object length</code></pre>
+<pre class="r"><code>mean_neg_bin = mean(act_neg)
+cat(&quot;The rmse of the negative binom model is:&quot;, rmse_neg_bin,&quot;\nThe actual value is:&quot;, mean_neg_bin)</code></pre>
+<pre><code>## The rmse of the negative binom model is: 8.642734 
+## The actual value is: 4.918919</code></pre>
+<pre class="r"><code>tol = 0.1
+neg_bin_diff = abs(rmse_neg_bin - mean_neg_bin)/ (max(abs(rmse_neg_bin), abs(mean_neg_bin)))
+if(pois_diff &lt; tol){
+  print(&quot;the rmse is smaller than the actual mean of the counts this means the predicted values are statistically similar to the actual data and the model best fits the data&quot;)
+}else{
+  print(&quot;the rmse is larger than the actual mean of the counts this means the predicted values are significantly different from the actual data even though the model best fits the data&quot;)
+}</code></pre>
+<pre><code>## [1] &quot;the rmse is larger than the actual mean of the counts this means the predicted values are significantly different from the actual data even though the model best fits the data&quot;</code></pre>
+</div>
 </div>
 <div id="quasi-binomial" class="section level3">
 <h3>5. quasi-binomial</h3>
+<p>Introduces a dispersion parameter, similar to the negative binomial
+model for count data.</p>
 </div>
 </div>
 <div id="non-parametric-tests" class="section level2">
