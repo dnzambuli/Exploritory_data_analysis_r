@@ -1,0 +1,1229 @@
+---
+title: "Telecomunication EDA"
+author: "Nzambuli Daniel"
+date: "2023-11-09"
+---
+
+# Task
+
+Perform Exploratory data analysis
+
+1.  data preparation
+
+    -   data with missing observations
+
+    -   explore
+
+    -   selecting the variables
+
+2.  assumptions for linear regression
+
+    -   normality
+    -   linearity
+    -   homoscedasticity
+    -   multi-colinearity
+
+3.  linear regression analysis - `continuous`
+
+    -   handling anomalies
+
+4.  GLMs
+
+    -   logostic regression - uses data that is `binomial`, `multinomial`, `ordinal`
+    -   poisson regression - `count data`
+    -   negative binomial
+    -   quasi binomial
+
+5.  Non Parametric tests
+
+    -   sign rank test = `one-sample t-test, one-sample z-test`
+
+    -   wilcoxcon sign rank test = `paired t-test`
+
+    -   mann u test = `independent t-test`
+
+    -   Kruskal-wallis H-test = `one way ANOVA`
+
+    -   Pearson Correlation = `spearman rank correlation`
+
+6.  Handling correlated data/ multivariate data
+
+7.  Exploratory
+
+    1.  PCA, Factor Analysis
+    2.  Fixed effect and random effect models
+    3.  handling missing data
+    4.  assessing missingness types:
+        -   MAR
+        -   CMAR
+        -   MNAR
+        -   GEE regression
+
+## 1. The Data Set
+
+```{r}
+library(readxl)
+Telecommunication_Data <- read_excel("Telecommunication Data.xlsx")
+View(Telecommunication_Data)
+```
+
+**See the data inline**
+
+```{r}
+head(Telecommunication_Data)
+```
+
+### Data Exploration
+
+**Column names of the data**
+
+```{r}
+colnames(Telecommunication_Data)
+```
+
+## 2 Data Preparation
+
+**Finding the missing values in each column**
+
+```{r}
+missing_values = data.frame(columns = colnames(Telecommunication_Data),
+                            vals_missing = colSums(is.na(Telecommunication_Data)),
+                            perc_missing = colMeans(is.na(Telecommunication_Data)) * 100)
+
+head(missing_values)
+```
+
+### Dealing with extreme missing values
+
+```{r}
+# columns with more than 50% missing values need to be removed 
+Telecommunication_Data = Telecommunication_Data[rowMeans(is.na(Telecommunication_Data))< 0.5, colMeans(is.na(Telecommunication_Data)) < 0.5]
+colnames(Telecommunication_Data)
+```
+
+### Split the data into Train and Test
+
+```{r}
+set.seed(123)
+
+# split witha 70/30 ration
+ind = sample(1:nrow(Telecommunication_Data), 0.7 * nrow(Telecommunication_Data))
+
+train = Telecommunication_Data[ind,]
+test = Telecommunication_Data[-ind,]
+
+nrow(train)
+nrow(test)
+```
+
+## 3. Select The Variables
+
+### Linear Regression
+
+```{r}
+linear_regress_data = train
+```
+
+#### Na values in Str columns
+
+```{r}
+library(dplyr, warn.conflicts = FALSE)
+
+char_columns = colnames(linear_regress_data %>% select_if(is.character))
+char_columns
+```
+
+#### Spread in the character columns
+
+```{r}
+library(ggplot2)
+plot_distrib = function(col_name){
+  # convert the data into columns
+  col_vals = data.frame(table(col_name))
+  col_vals$percent = col_vals$Freq / sum(col_vals$Freq) * 100
+  # plot the distibution
+  plot = ggplot(col_vals, aes(x = "", y = Freq, fill = as.factor(as.character(col_name)))) +
+    geom_bar(stat = "identity") +
+    coord_polar("y") +
+    geom_text(aes(label = paste0(round(percent), "%")), position = position_stack(vjust = 0.5)) +
+    ggtitle("Distribution Percentages") +
+    theme_light()
+  return(plot)
+}
+```
+
+```{r}
+char_columns
+```
+
+```{r}
+print("Distribution of Region")
+img = plot_distrib(linear_regress_data$region)
+print(img)
+```
+
+```{r}
+print("Distribution of Marital")
+img = plot_distrib(linear_regress_data$marital)
+print(img)
+```
+
+```{r}
+print("Distribution of Retire")
+img = plot_distrib(linear_regress_data$retire)
+print(img)
+```
+
+```{r}
+print("Distribution of Gender")
+img = plot_distrib(linear_regress_data$gender)
+print(img)
+```
+
+```{r}
+print("Distribution of TollFree")
+img = plot_distrib(linear_regress_data$tollfree)
+print(img)
+```
+
+```{r}
+print("Distribution of Custcat")
+img = plot_distrib(linear_regress_data$custcat)
+print(img)
+```
+
+```{r}
+print("Distribution of Churn")
+img = plot_distrib(linear_regress_data$churn)
+print(img)
+```
+
+#### Impute the Non-numeric Columns
+
+::: {#char_impute style="background-color: coral;"}
+**Replace with Mode**
+
+`mydata$my_factor_var[is.na(mydata$my_factor_var)] <- mode(mydata$my_factor_var, na.rm = TRUE)`
+
+**Replace with Random Sampling**
+
+set.seed(123) \# Setting seed for reproducibility
+
+mydata\$my_factor_var[is.na(mydata\$my_factor_var)] \<- sample(mydata\$my_factor_var, sum(is.na(mydata\$my_factor_var)), replace = TRUE)
+
+**Replace with Predictive Imputing**
+
+Uses other columns to perform a random forest regression
+
+library(caret) my_impute_model \<- train(my_factor_var \~., data = mydata, method = "rf") mydata$my_factor_var[is.na(mydata$my_factor_var)] \<- predict(my_impute_model, newdata = mydata[is.na(mydata\$my_factor_var), ])
+
+**Using KNN**
+
+Assesses the nearest neighbours and replaces with the most approproiate value
+
+library(DMwR) mydata$my_factor_var <- knnImputation(mydata$my_factor_var)
+:::
+
+1.  **Region**
+
+```{r}
+# using random forest regression to impute 
+# categorical values are better replaced by mode
+
+# calculate mode
+calc_mod = function(x){
+  uniq_x = unique(x)
+  uniq_x[which.max(tabulate(match(x, uniq_x)))]
+}
+
+# use ifelse to replace with mode otherwise retain the data
+linear_regress_data$region = ifelse(is.na(linear_regress_data$region),calc_mod(linear_regress_data$region),                      linear_regress_data$region)
+
+# confirm if there is still na data in region
+if(any(is.na(linear_regress_data$region))){
+  print("There are still na values")
+}else{
+  print("There are no na values")
+}
+```
+
+**Confirm Spread of Region**
+
+```{r}
+plt = plot_distrib(linear_regress_data$region)
+print(plt)
+```
+
+The region spread is similar to the initial spread with a single percentage increase in `Zone 3`
+
+2.  **marital**
+
+```{r}
+linear_regress_data$marital = ifelse(is.na(linear_regress_data$marital),calc_mod(linear_regress_data$marital),                      linear_regress_data$marital)
+
+# confirm if there is still na data in region
+if(any(is.na(linear_regress_data$marital))){
+  print("There are still na values")
+}else{
+  print("There are no na values")
+}
+```
+
+```{r}
+plt = plot_distrib(linear_regress_data$marital)
+print(plt)
+```
+
+The spread remains consistent with the spread before imputation
+
+3.  **retire**
+
+```{r}
+linear_regress_data$retire = ifelse(is.na(linear_regress_data$retire),calc_mod(linear_regress_data$retire),                      linear_regress_data$retire)
+
+# confirm if there is still na data in region
+if(any(is.na(linear_regress_data$retire))){
+  print("There are still na values")
+}else{
+  print("There are no na values")
+}
+```
+
+```{r}
+plt = plot_distrib(linear_regress_data$retire)
+print(plt)
+```
+
+4.  **gender**
+
+```{r}
+linear_regress_data$gender = ifelse(is.na(linear_regress_data$gender),calc_mod(linear_regress_data$gender),                      linear_regress_data$gender)
+
+# confirm if there is still na data in region
+if(any(is.na(linear_regress_data$gender))){
+  print("There are still na values")
+}else{
+  print("There are no na values")
+}
+
+plt = plot_distrib(linear_regress_data$gender)
+print(plt)
+```
+
+5.  **tollfree**
+
+```{r}
+linear_regress_data$tollfree = ifelse(is.na(linear_regress_data$tollfree),calc_mod(linear_regress_data$tollfree),                      linear_regress_data$tollfree)
+
+# confirm if there is still na data in region
+if(any(is.na(linear_regress_data$tollfree))){
+  print("There are still na values")
+}else{
+  print("There are no na values")
+}
+
+plt = plot_distrib(linear_regress_data$tollfree)
+print(plt)
+```
+
+6.  **custcat**
+
+```{r}
+linear_regress_data$custcat = ifelse(is.na(linear_regress_data$custcat),calc_mod(linear_regress_data$custcat),                      linear_regress_data$custcat)
+
+# confirm if there is still na data in region
+if(any(is.na(linear_regress_data$custcat))){
+  print("There are still na values")
+}else{
+  print("There are no na values")
+}
+
+plt = plot_distrib(linear_regress_data$custcat)
+print(plt)
+```
+
+7.  **churn**
+
+```{r}
+linear_regress_data$churn = ifelse(is.na(linear_regress_data$churn),calc_mod(linear_regress_data$churn),                      linear_regress_data$churn)
+
+# confirm if there is still na data in region
+if(any(is.na(linear_regress_data$churn))){
+  print("There are still na values")
+}else{
+  print("There are no na values")
+}
+
+plt = plot_distrib(linear_regress_data$churn)
+print(plt)
+```
+
+### Encode these factor columns
+
+```{r}
+char_columns
+```
+
+1.  **Region**
+
+```{r}
+unique(linear_regress_data$region)
+```
+
+```{r}
+linear_regress_data$region = ifelse(linear_regress_data$region == "Zone 1", 1, ifelse(
+  linear_regress_data$region == "Zone 2", 2, ifelse(
+    linear_regress_data$region == "Zone 3", 3, linear_regress_data$region
+  )
+))
+```
+
+2.  **marital**
+
+```{r}
+unique(linear_regress_data$marital)
+```
+
+```{r}
+linear_regress_data$marital = ifelse(linear_regress_data$marital == "Unmarried", 1, ifelse(
+  linear_regress_data$marital == "Married", 2, linear_regress_data$marital
+  )
+) 
+```
+
+3.  **retire**
+
+```{r}
+unique(linear_regress_data$retire)
+```
+
+```{r}
+linear_regress_data$retire = ifelse(linear_regress_data$retire == "No", 1, ifelse(
+  linear_regress_data$retire == "Yes", 2, linear_regress_data$retire
+  )
+) 
+```
+
+4.  **gender**
+
+```{r}
+unique(linear_regress_data$gender)
+```
+
+```{r}
+linear_regress_data$gender = ifelse(linear_regress_data$gender == "Female", 1, ifelse(
+  linear_regress_data$gender == "Male", 2, linear_regress_data$gender
+  )
+) 
+```
+
+5.  **tollfree**
+
+```{r}
+unique(linear_regress_data$tollfree)
+```
+
+```{r}
+linear_regress_data$tollfree = ifelse(linear_regress_data$tollfree == "No", 1, ifelse(
+  linear_regress_data$tollfree == "Yes", 2, linear_regress_data$tollfree
+  )
+) 
+```
+
+6.  **custcat**
+
+```{r}
+unique(linear_regress_data$custcat)
+```
+
+```{r}
+linear_regress_data$custcat = ifelse(linear_regress_data$custcat == "Plus Service", 1, ifelse(
+  linear_regress_data$custcat == "Total Service", 2,ifelse(
+  linear_regress_data$custcat == "E-Service", 3,ifelse(
+  linear_regress_data$custcat == "Basic Service", 4, linear_regress_data$custcat
+  )
+)))
+```
+
+7.  **churn**
+
+```{r}
+unique(linear_regress_data$churn)
+```
+
+```{r}
+linear_regress_data$churn = ifelse(linear_regress_data$churn == "No", 1, ifelse(
+  linear_regress_data$churn == "Yes", 2, linear_regress_data$churn
+  )
+) 
+```
+
+### Convert the character columns to factor columns
+
+```{r}
+linear_regress_data = linear_regress_data %>% mutate(across(all_of(char_columns), as.factor))
+head(linear_regress_data)
+```
+
+### Non_factor columns
+
+```{r}
+non_factor = colnames(linear_regress_data %>% select_if(is.numeric))
+non_factor
+```
+
+```{r}
+# using a density plot to assess the distribution of the data 
+
+plot_density = function(data_set,num_col){
+  ggplot(data_set, aes(x = data_set[[num_col]]))+
+    geom_density(fill = "lightblue", color = "blue")+
+    ggtitle(paste("Density Plot of", num_col))+
+    xlab(num_col)+
+    ylab("Density")+
+    theme_minimal()
+}
+```
+
+1.  **Tenure**
+
+```{r}
+# plot
+
+plot_density(linear_regress_data,"tenure")
+```
+
+```{r}
+# IMPUTE data
+set.seed(123)
+rand_val = function(data, column_name, low = 0, up = 1){
+  data[[column_name]] = ifelse(is.na(data[[column_name]]), runif(sum(is.na(data[[column_name]])), min = low, max = up), data[[column_name]])
+  return(data)
+}
+```
+
+```{r}
+linear_regress_data=rand_val(linear_regress_data, "tenure")
+
+if(any(is.na(linear_regress_data$tenure))){
+  print(paste("there are na values", "tenure"))
+}else{
+  print(paste("there are no na values", "tenure"))
+}
+```
+
+```{r}
+# new disribution of tenure
+plot_density(linear_regress_data, "tenure")
+```
+
+2.  **age**
+
+```{r}
+plot_density(linear_regress_data, "age")
+```
+
+```{r}
+linear_regress_data = rand_val(linear_regress_data, "age")
+
+if(any(is.na(linear_regress_data$tenure))){
+  print(paste("there are na values", "age"))
+}else{
+  print(paste("there are no na values", "age"))
+}
+```
+
+```{r}
+plot_density(linear_regress_data, "age")
+```
+
+3.  **address**
+
+```{r}
+plot_density(linear_regress_data, "address")
+```
+
+```{r}
+linear_regress_data = rand_val(linear_regress_data, "address")
+
+if(any(is.na(linear_regress_data$tenure))){
+  print(paste("there are na values", "address"))
+}else{
+  print(paste("there are no na values", "address"))
+}
+```
+
+```{r}
+plot_density(linear_regress_data, "address")
+```
+
+4.  **income**
+
+```{r}
+plot_density(linear_regress_data, "income")
+```
+
+```{r}
+linear_regress_data = rand_val(linear_regress_data, "income")
+
+if(any(is.na(linear_regress_data$income))){
+  print(paste("there are na values", "income"))
+}else{
+  print(paste("there are no na values", "income"))
+}
+```
+
+```{r}
+plot_density(linear_regress_data, "income")
+```
+
+5.  **employ**
+
+```{r}
+plot_density(linear_regress_data, "employ")
+```
+
+```{r}
+linear_regress_data = rand_val(linear_regress_data, "employ")
+
+if(any(is.na(linear_regress_data$employ))){
+  print(paste("there are na values", "employ"))
+}else{
+  print(paste("there are no na values", "employ"))
+}
+```
+
+```{r}
+plot_density(linear_regress_data, "employ")
+```
+
+6.  **reside**
+
+```{r}
+plot_density(linear_regress_data, "reside")
+```
+
+```{r}
+linear_regress_data = rand_val(linear_regress_data, "reside")
+
+if(any(is.na(linear_regress_data$reside))){
+  print(paste("there are na values", "reside"))
+}else{
+  print(paste("there are no na values", "reside"))
+}
+```
+
+```{r}
+plot_density(linear_regress_data, "reside")
+```
+
+7.  **tollten**
+
+```{r}
+plot_density(linear_regress_data, "tollten")
+```
+
+```{r}
+linear_regress_data = rand_val(linear_regress_data, "tollten")
+
+if(any(is.na(linear_regress_data$tollten))){
+  print(paste("there are na values", "tollten"))
+}else{
+  print(paste("there are no na values", "tollten"))
+}
+```
+
+```{r}
+plot_density(linear_regress_data, "tollten")
+```
+
+8.  **equipten**
+
+```{r}
+plot_density(linear_regress_data, "equipten")
+```
+
+```{r}
+linear_regress_data = rand_val(linear_regress_data, "equipten")
+
+if(any(is.na(linear_regress_data$equipten))){
+  print(paste("there are na values", "equipten"))
+}else{
+  print(paste("there are no na values", "equipten"))
+}
+```
+
+```{r}
+plot_density(linear_regress_data, "equipten")
+```
+
+9.  **cardten**
+
+```{r}
+plot_density(linear_regress_data, "cardten")
+```
+
+```{r}
+linear_regress_data = rand_val(linear_regress_data, "cardten")
+
+if(any(is.na(linear_regress_data$cardten))){
+  print(paste("there are na values", "cardten"))
+}else{
+  print(paste("there are no na values", "cardten"))
+}
+```
+
+```{r}
+plot_density(linear_regress_data, "cardten")
+```
+
+10. **wireten**
+
+```{r}
+plot_density(linear_regress_data, "wireten")
+```
+
+```{r}
+linear_regress_data = rand_val(linear_regress_data, "wireten")
+
+if(any(is.na(linear_regress_data$wireten))){
+  print(paste("there are na values", "wireten"))
+}else{
+  print(paste("there are no na values", "wireten"))
+}
+```
+
+```{r}
+plot_density(linear_regress_data, "wireten")
+```
+
+11. **loglong**
+
+```{r}
+plot_density(linear_regress_data, "loglong")
+```
+
+```{r}
+linear_regress_data = rand_val(linear_regress_data, "loglong")
+
+if(any(is.na(linear_regress_data$loglong))){
+  print(paste("there are na values", "loglong"))
+}else{
+  print(paste("there are no na values", "loglong"))
+}
+```
+
+```{r}
+plot_density(linear_regress_data, "loglong")
+```
+
+12. **logcard**
+
+```{r}
+plot_density(linear_regress_data, "logcard")
+```
+
+```{r}
+linear_regress_data = rand_val(linear_regress_data, "logcard")
+
+if(any(is.na(linear_regress_data$logcard))){
+  print(paste("there are na values", "logcard"))
+}else{
+  print(paste("there are no na values", "logcard"))
+}
+```
+
+```{r}
+plot_density(linear_regress_data, "logcard")
+```
+
+**Imputation** does not affect the data distribution
+
+## 4. Linear Regression Assumptions
+
+For the linear regression the aim is to determine `age` based on the other variables in the linear regression data set
+
+### a. Homoscedasticity
+
+```{r}
+# round off all values that are not 
+# Age - 3
+# employ - 7
+# address - 5
+# Tenure - 2
+# income - 6
+# reside - 10
+linear_regress_data[, c(3, 7, 5, 2, 6,10)][,
+                                            sapply(linear_regress_data[, c(3, 7, 5, 2, 6, 10)], is.numeric)] = round(linear_regress_data[, c(3, 7, 5, 2, 6, 10)][,
+                                            sapply(linear_regress_data[, c(3, 7, 5, 2, 6, 10)], is.numeric)])
+
+```
+
+```{r}
+linear_regress_model = lm(age~., data = linear_regress_data)
+summary(linear_regress_model)
+```
+
+Based on this output the correlation of all columns of the data set has a covariance matrix of `0.8050466` with a distribution away from `0` because of the first quartile at `-5.1` and third quatile at `4.9`
+
+```{r}
+# using the key predictor values only 
+linear_regress_model_2 = lm(age~marital + address + employ + retire+ gender + reside + logcard, data = linear_regress_data)
+summary(linear_regress_model_2)
+```
+
+```{r}
+linear_regress_model_3 = lm(age~marital + address + employ + retire+ reside + logcard, data = linear_regress_data)
+summary(linear_regress_model_3)
+```
+
+These third model is the most accurate as it has the most significant variables that can help predict age
+
+age is estimates as
+
+$$
+f(age) = 2.56988\ Marital + 0.43730\ Address + 0.51043\ Employ + 12.0553\ 6Retire - 1. 32943\ Reside + 0.65276\ logcard
+$$
+
+#### Test
+
+```{r}
+any(is.na(linear_regress_data))
+```
+
+```{r}
+library(lmtest)
+homoscedastisty_test = bptest(linear_regress_model)
+homoscedastisty_test
+```
+
+```{r}
+homoscedastisty_test_2 = bptest(linear_regress_model_2)
+homoscedastisty_test_2
+```
+
+```{r}
+homoscedastisty_test_3 = bptest(linear_regress_model_3)
+homoscedastisty_test_3
+```
+
+**Iterpretation**
+
+Breusch-Pagan test
+
+-   **Null Hypothesis** $h_o$**:** The null hypothesis of the Breusch-Pagan test is that there is homoscedasticity, meaning that the variance of the residuals is constant across all levels of the independent variable(s).
+
+-   **Alternative Hypothesis** $h_1$**:** The alternative hypothesis is that there is heteroscedasticity, meaning that the variance of the residuals is not constant across all levels of the independent variable(s).
+
+-   If the p-value is less than `0.05` reject null hypothesis
+
+using the data from `model 1` the p-value of `0.07769` which is greater than `0.05` indicates the data has constant variance across the residuals hence the data has uniform variance `has homoscedasticity`
+
+The better models have less than 0.05 p-value meaning they have `heteroscedasticity` and high variability in the independent variables
+
+Model 3 - `1.576e-0.5`
+
+Model 2 - `7.675e-0.5`
+
+### b. Normality
+
+1.  **Using QQ-plots**
+
+```{r}
+linear_regress_residuals <- residuals(linear_regress_model_3)
+
+# QQ plot 
+qqnorm(linear_regress_residuals)
+qqline(linear_regress_residuals, col = 2)
+```
+
+Most point lie on the qq line meaning the data is `normaly distributed`
+
+### c. linearity
+
+```{r}
+# residuals fitted value plot 
+library(ggplot2)
+
+res_fit = data.frame(fitted = linear_regress_model_3$fitted.values,
+                     residual = linear_regress_model_3$residuals)
+
+ggplot(data = res_fit,
+       aes(x = fitted, y = residual)) +
+  geom_point()+
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(
+    x = "fitted values",
+    y = "residuals",
+    title = "Fitted value Residual Plot"
+  )
+```
+
+Most values lie around the red line meaning the data is `Normally distributed`
+
+### d. Multi-co-linearity
+
+Using **Variance inflation plots** how much the variance of a regression coefficient is inflated due to multicollinearity.
+
+```{r}
+library(car, warn.conflicts = FALSE)
+
+var_inf = vif(linear_regress_model_3)
+var_inf
+```
+
+The variance inflation factor for each of the variables is `less than 5` indicating that the variables are not affected by variance inflation due to **multi-colinearity**
+
+### e. Confirm accuracy of model
+
+```{r}
+test= na.omit(test)
+# age~marital + address + employ + retire+ reside + logcard
+test$marital = ifelse(test$marital == "Unmarried", 1, ifelse(
+  test$marital == "Married", 2, test$marital
+))
+test$retire = ifelse(test$retire == "No", 1, ifelse(
+  test$retire == "Yes", 2, test$retire
+))
+predict_mod = predict(linear_regress_model_3,
+                       test)
+predict_mod = ifelse(predict_mod > 0.5, 1, 0)
+
+actual_lm_val = test$age
+mse = mean((predict_mod - actual_lm_val)^2)
+rmse = sqrt(mse)
+
+cat("The mean squared error is", mse, " with a rmse of ", rmse)
+```
+
+```{r}
+age_range = max(Telecommunication_Data$age, na.rm = TRUE) - min(Telecommunication_Data$age, na.rm = TRUE)
+age_range
+```
+
+Because the dependent variable range of `59` is larger than the RMSE of the regression model using linear regression model 3 of `43.62131` the model does not need any further tweaking to increase the accuracy of the model
+
+## 5. GLMs
+
+### 1. Logistic Binomial
+
+A statistical method used for binary classification tasks
+
+Dependent variable is categorical and has only two possible outcomes, usually coded as 0 and 1.
+
+The logistic regression model uses the logistic function (also known as the sigmoid function) to model the relationship between the predictor variables and the probability of the binary outcome.
+
+$$
+P(y = 1|x) = \frac{1}{1+e^{-(B_0 + B_1x_1+ B_2x_2+ B_3x_3+ ...+ B_nx_n}}
+$$
+
+**Where:**
+
+::: {style="background_color: #add8e6;"}
+-   **P(y = 1\|x)** is the probability of the dependent variable being 1 given the values of predictor variables X.
+
+-   $B_0, B_1, B_2,B_3, …$ are coefficients estimated by the model.
+
+-   $x_1, x_2, x_3, x_4, …$ the predictor variables
+:::
+
+​
+
+```{r}
+binom_regress_data = linear_regress_data
+```
+
+#### a. Select the dependent variable
+
+The model tries to predict `marital status` based on the other variables.
+
+-   Unmarried `1` will become 1
+
+-   Married `2` will become 0
+
+```{r}
+# encoding marital
+binom_regress_data$marital = ifelse(binom_regress_data$marital == 1, 1, 0)
+min(binom_regress_data$marital)
+max(binom_regress_data$marital)
+```
+
+#### b. Fit the logistic regression model
+
+```{r}
+binom_model = glm(marital~., data = binom_regress_data, family = "binomial")
+summary(binom_model)
+```
+
+The AIC value is below `1000` meaning the model is highly discriminant to choosing whether a person is married or unmarried
+
+The model predicts that `age, reside` have an accuracy of `0.01` in predicting the marital status, `employ, retire, logcard` also predict the marital status but with a lower accuracy of `0.05`
+
+```{r}
+binom_model_2 = glm(marital~age+employ+reside+retire+ logcard, data = binom_regress_data, family = "binomial")
+summary(binom_model_2)
+```
+
+This model is more discriminant to the marital status and the accuracy has improved as the AUC is lower than the first model by `1.098799%`
+
+From this model
+
+The `age` and the people `reside` have a negative relation to `marital` will cause the model to more accurately predict `marital`
+
+```{r}
+binom_model_3 = glm(marital~age+reside, data = binom_regress_data, family = "binomial")
+summary(binom_model_3)
+```
+
+```{r}
+binom_model_4 = glm(marital~employ+retire+logcard, data =binom_regress_data, family = "binomial")
+summary(binom_model_4)
+```
+
+`model 3` is more accurate than model 1 but less than model 2 although it uses the most discriminant variables
+
+#### b. Model accuracy
+
+```{r}
+binom_test = test
+binom_test$marital = ifelse(binom_test$marital == 1, 1, 0)
+binom_pred = predict(binom_model_2, test, type = "response")
+binom_pred = ifelse(binom_pred > 0.5, 1, 0)
+
+# see prediction model contigency table
+binom_cont_tab = table(predicted = binom_pred, actual =  binom_test$marital)
+
+print("Unmarried = 1 and married = 0")
+binom_cont_tab
+```
+
+The model predicted that `9 married` people were married and `18 unmarried` people were married
+
+```{r}
+library(caTools)
+library(ROCR)
+binomial_acc_obj = prediction(binom_pred, binom_test$marital)
+binom_auc = performance(binomial_acc_obj, measure = "auc")
+binom_auc = binom_auc@y.values[[1]]
+binom_auc * 100
+```
+
+The binomial model is `85.4874%` accurate
+
+```{r}
+# coefficient of linear regression
+coef(binom_model_2)
+```
+
+$$
+P(y = married|x) = \frac{1}{1+e^{-(5.515 - 0.051\ age +0.0228\ employ-1.5311\ reside + 0.7871\ retire -0.164 logcard)}}
+$$
+
+### 2. logistic multi-nomial
+
+multi-nomial logistic regression can handle more than two classes
+
+Uses a categorical dependent variable with more than two categories and one or more independent variables.
+
+three or more unordered categories.
+
+```{r}
+multinom_data = linear_regress_data
+```
+
+#### a. select the dependent variable
+
+Reside has been choses as it is unordered and has multiple categories from`1` to `8`
+
+```{r}
+library(nnet)
+multi_nom_mod = multinom(reside~., data = multinom_data)
+summary(multi_nom_mod)
+```
+
+```{r}
+coef(multi_nom_mod)[1,]
+```
+
+\$\$
+
+\$\$
+
+$$
+P(reside\ 2 = 1|reside1\ 1) = \frac{1}{1+e^{2.8086 -0.714\ reside\ 1}}\\
+P(reside\ 3 = 1|reside1\ 1) = \frac{1}{1+e^{2.8086 -0.481\ reside\ 1}}
+$$
+
+give that $P(region1 = 1|x) = \frac{1}{1+e^{-x}}$
+
+$$
+x = 0.052\ tenure + 0.094\ age - 6.28\ marital - 0.16145\ address + 0.0034\ income - 0.10435\ employ + 3.2131\ retire+0.20677\ gender-0.227\ tollfree+ 0.0007tollten + 0.0007equipten+0.0003cardten- 0.0012\wireten+0.67139\ loglong-0.44logcard-0.57322\ custcat+0.328\churn
+$$
+
+This repeats for each of the subsequent `8` output rows
+
+#### b. accuracy of the model
+
+```{r}
+multi_test = test
+multi_test$region = ifelse(multi_test$region == "Zone 1", 1, ifelse(multi_test$region == "Zone 2", 2, ifelse(
+  multi_test$region == "Zone 3", 3, multi_test$region
+)))
+multi_test$region = as.factor(multi_test$region)
+multi_test$gender =ifelse(multi_test$gender == "Female", 1,2) 
+multi_test$gender = as.factor(multi_test$gender)
+multi_test$tollfree =ifelse(multi_test$tollfree == "No", 1,2) 
+multi_test$tollfree = as.factor(multi_test$tollfree)
+multi_test$custcat = ifelse(multi_test$custcat == "Plus Service", 1, ifelse(
+  multi_test$custcat == "Total Service", 2,ifelse(
+  multi_test$custcat == "E-Service", 3,ifelse(
+  multi_test$custcat == "Basic Service", 4, multi_test$custcat
+  )
+)))
+multi_test$custcat = as.factor(multi_test$custcat)
+multi_test$churn =ifelse(multi_test$churn == "No", 1,2)
+multi_test$churn= as.factor(multi_test$churn)
+predict_multi = predict(multi_nom_mod, newdata = multi_test)
+accuracy_multi <- mean(predict_multi== multi_test$reside)
+accuracy_multi
+```
+
+The model is `56.04%` accurate
+
+### 3. Poisson regression
+
+#### a. fit the model
+
+Dependent variable represents counts and follows a Poisson distribution
+
+`Employ` is count data from 0 - 41
+
+```{r}
+poisson_data = linear_regress_data
+
+poisson_mod = glm(employ~., data = poisson_data, family = "poisson" )
+
+summary(poisson_mod)
+```
+
+```{r}
+poisson_mod_2 = glm(employ~region+tenure+age+marital+address+income+retire+gender+reside+tollfree+wireten+loglong+churn, data = poisson_data, family = "poisson")
+summary(poisson_mod_2)
+```
+
+model 2 is better than model 1 because of an AUC `4` units lower than in model 1
+
+```{r}
+poisson_mod_3 = glm(employ~tenure+age+address+income+retire+gender+tollfree+wireten+loglong+churn, data = poisson_data, family = "poisson")
+summary(poisson_mod_3)
+```
+
+model 3 is better than model 2 and model 1
+
+```{r}
+poisson_mod_4 = glm(employ~tenure+age+address+income+gender+tollfree+wireten+loglong+churn, data = poisson_data, family= "poisson")
+summary(poisson_mod_4)
+```
+
+model 4 is less accurate than model 3
+
+`model 3` is more acurate and thus is selected for prediction
+
+```{r}
+poisson_test = multi_test
+poisson_pred = predict(poisson_mod_3, poisson_test)
+poisson_pred = ifelse(poisson_pred > 0.5, 1, 0)
+
+# contigency table 
+print("predictions are for employ from 0 - 41")
+poisson_tab = t(table(predicted = poisson_pred, actual = poisson_test$employ))
+poisson_tab
+```
+
+#### b. model accuracy
+
+The model doesn't predict discrete classes but rather estimates the expected counts based on the predictor variables.
+
+1.  **Devariance and AIC**
+
+The AIC of the third model is the lowest hence the model has the best goodness of fit in estimatuing the counts for `employ` years
+
+The p-values of the selected values are all below `0.05` with the highest being `< 0.01`
+
+2.  **Residuals Plot**
+
+how the model captures patterns in the data, and outliers
+
+```{r}
+poisson_residuals = data.frame(fitted = predict(poisson_mod_3), 
+                               residuals = residuals(poisson_mod_3))
+
+library(ggplot2)
+
+ggplot(poisson_residuals, aes(x = fitted, y = residuals))+
+  geom_point()+
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(x = "Fitted Values", y = "Residuals", title = "Poisson Regression Residuals Plot")
+```
+
+The data from the model is evenly scattered about the zero line indicating equal variance across the predictor variables hence `the data fits homoscedasticity`
+
+there are extreme residuals above `2.5` and below `5`
+
+3.  **RMSE**
+
+```{r}
+actual_poisson = data.frame(employ = test$employ, count = rep(1, nrow(test)))
+actual_poisson = actual_poisson %>% group_by(employ)%>%summarise(count = sum(count))
+actual_poisson
+```
+
+```{r}
+poisson_test = multi_test
+predicted_poisson = predict(poisson_mod_3, poisson_test, type ="response")
+actual_val_pois = actual_poisson$count
+rmse_pois = sqrt(mean(actual_val_pois- predicted_poisson)^2)
+real_pois = mean(actual_poisson$count)
+cat("The rmse of the poisson model is: ", rmse_pois,"\nThe actual value is: ", real_pois)
+```
+
+```{r}
+# propotional difference
+tol = 0.1
+pois_diff = abs(rmse_pois - real_pois)/ (max(abs(rmse_pois), abs(real_pois)))
+pois_diff < tol
+```
+
+the rmse is larger than the actual mean of the counts this means the predicted values are significantly different from the actual data even though the model best fits the data
+
+### 4. Negative binomial
+
+### 5. quasi-binomial
+
+## 6. Non Parametric tests
+
+### 1. sign rank test = one-sample t-test, one-sample z-test
+
+### 2. wilcoxcon sign rank test = paired t-test
+
+### 3. mann u test = independent t-test
+
+### 4. Kruskal-wallis H-test = one way ANOVA
+
+### 5. Pearson Correlation = spearman rank correlation
+
+## 7. Exploratory Analysis
+
+### 1. PCA, Factor Analysis
+
+### 2. Fixed effect and random effect models
+
+### 3. assessing missingness types:
+
+#### a. MAR
+
+#### b. CMAR
+
+#### c. MNAR
+
+#### d. GEE regression
