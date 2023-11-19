@@ -1307,6 +1307,12 @@ There is no suitable variable for quasi-binomial data as `the variance-to-mean r
 ## 6. Non Parametric tests
 
 ### 1. sign rank test = one-sample t-test, one-sample z-test
+```{r}
+wilkox_train = linear_regress_data
+wilkox_test = quasi_binom_test
+```
+
+#### a. using Wilcox sign test
 
 ```{r}
 wilkox_begin_ind = sample(nrow(wilkox_train), 70, replace = FALSE)
@@ -1364,12 +1370,7 @@ The `t-score` indicates how close the data is to the `hypothesised` mean. The st
 
 A sample of `90` observations is made from both the training and test data sets.
 
-#### a. using Wilcox sign test
 
-```{r}
-wilkox_train = linear_regress_data
-wilkox_test = quasi_binom_test
-```
 
 #### b. Selecting paired samples
 
