@@ -1434,11 +1434,84 @@ mann_u_test
 
 The p-value of `0.04782` is less than the threshold of `0.05` which indicates that the null hypothesis should be rejected.
 
-This means that there is a statistically significant difference in the income of individuals in low residence houses than in high residence house
+This means that there is a statistically significant difference in the median income of individuals in low residence houses than in high residence house
 
 ### 4. Kruskal-wallis H-test = one way ANOVA
 
+A non-parametric statistical test used to determine whether two or more independent groups have different medians.
+
+It's an extension of the Mann-Whitney U test for more than two groups and serves as a non-parametric alternative to the one-way analysis of variance (ANOVA) when the assumptions of ANOVA, particularly the assumption of normality, are not met.
+
+$h_0$ medians of all groups are equal
+
+$h_1$ at least one groups median differs from the rest
+
+#### a. Test on income based on multiple categories of residences
+
+```{r}
+kruskal_data = quasi_binom_data
+kruskal_test = kruskal.test(income~reside, data = kruskal_data)
+kruskal_test
+```
+
+#### b. Interpretation
+
+$h_0$ medians across the levels of income at all reside are not statistically different from each other
+
+$h_1$ medians across the levels of income at all reside are statistically different from each other
+
+because the p-value of `0.4127` is `> 0.05` the null hypothesis is not rejected.
+
+This means that the there is not sufficient evidence to conclude significant difference in the median of income across the different residing people in the homes
+
 ### 5. Pearson Correlation = spearman rank correlation
+
+Used to assess the relationship between two continuous variables but how they quantify and evaluate this relationship
+
+#### a. Pearson 
+
+Assumes a linear relationship between variables and requires both variables to be normally distributed.
+
+Measures the strength and direction of a linear relationship between two continuous variables.
+
+Values range from -1 to 1.
+
+-   1 indicates a perfect positive linear relationship.
+
+-   -1 indicates a perfect negative linear relationship.
+
+-   0 indicates no linear relationship.
+
+#### b. Spearman rank correlation
+
+Doesn\'t assume linearity or normality and is suitable for ordinal or non-normally distributed data.
+
+Measures the strength and direction of monotonic relationships between variables.
+
+Similar to Pearson, but `it measures the monotonic relationship rather than the linear relationship`. It's robust against outliers
+
+#### c. Assessment 
+
+```{r}
+pearson_spearman = function(x){
+  pearson_cor = cor(linear_regress_data$tollten,
+                  linear_regress_data[,x], method = "pearson")
+  spearman_cor = cor(linear_regress_data$tollten,
+                  linear_regress_data[,x], method = "spearman")
+  return (cat("the pearson corerelation for ", x, "is ", pearson_cor," and the spearman correlation is: ", spearman_cor, "\n"))
+}
+```
+
+```{r}
+continuous_data = c("equipten", "cardten", "wireten", "loglong", "logcard")
+for (i in 1:length(continuous_data)){
+  print(pearson_spearman(continuous_data[i]))
+}
+```
+
+`cardten`, `wireten` , `logcard` and `loglong` have a strong linear correlation with `tollten` which because the pearson coefficient is significantly close to `0.5`
+
+`logcard` has a weak positive correlation with `tollten` because their pearson correlation value is significantly close to `0`
 
 ## 7. Exploratory Analysis
 
