@@ -1517,6 +1517,20 @@ for (i in 1:length(continuous_data)){
 
 ### 1. PCA, Factor Analysis
 
+Dimensionality reduction techniques used in statistics and data analysis, but they have different approaches and applications.
+
+**PCA** Identifies a new set of uncorrelated variables (principal components) that are linear combinations of the original variables. These components are ordered by the amount of variance they explain
+
+**Factor Analysis** It assumes that observed variables are influenced by a smaller number of unobserved (latent) variables or factors. It explores the relationships between observed variables and factors.
+
+#### a. the libraries
+
+```{r}
+library(psych)
+library(factoextra)
+library(GPArotation)
+```
+
 ### 2. Fixed effect and random effect models
 
 ### 3. assessing missing-ness types:
