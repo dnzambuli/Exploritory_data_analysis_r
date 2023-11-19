@@ -1521,14 +1521,92 @@ Dimensionality reduction techniques used in statistics and data analysis, but th
 
 **PCA** Identifies a new set of uncorrelated variables (principal components) that are linear combinations of the original variables. These components are ordered by the amount of variance they explain
 
+The main goal of PCA is to find a new set of variables, called principal components, which are linear combinations of the original variables.
+
 **Factor Analysis** It assumes that observed variables are influenced by a smaller number of unobserved (latent) variables or factors. It explores the relationships between observed variables and factors.
 
 #### a. the libraries
 
 ```{r}
 library(psych)
-library(factoextra)
-library(GPArotation)
+library(FactoMineR, warn.conflicts = FALSE)
+library(factoextra, warn.conflicts = FALSE)
+```
+
+#### b. Dataset with no na values and numeric
+
+```{r}
+library(dplyr)
+pca_data = linear_regress_data
+pca_data = pca_data %>% select_if(is.numeric)
+data_pca_cor = cor(pca_data)
+data_pca_cor
+```
+
+```{r}
+# perform pca 
+pca_analysis = prcomp(pca_data,
+                      scale = TRUE) # avoid bias
+summary(pca_analysis)
+```
+
+#### c. elements of the pca 
+
+```{r}
+names(pca_analysis)
+```
+
+#### d. standard deviation of the components 
+
+```{r}
+pca_analysis$sdev
+```
+
+#### e. Eigen vectors of pca
+
+```{r}
+pca_analysis$rotation
+```
+
+#### f. mean and standard deviation of the original variables
+
+```{r}
+pca_analysis$center # mean
+pca_analysis$scale# standard deviation
+```
+
+#### g. pca scores
+
+```{r}
+pca_analysis$x
+```
+
+#### h. Visualization
+
+1.  **Scree plot**
+
+```{r}
+fviz_eig(pca_analysis, 
+         addlabels = TRUE, 
+         ylim = c(0, 70))
+```
+
+2.  **Data point labels**
+
+```{r}
+fviz_pca_biplot(pca_analysis,
+                label = "var")
+```
+
+#### i. Colored groups
+
+color by age 1 young, 0 old
+
+```{r}
+pca_data$age = ifelse(pca_data$age < 35, 1, 0)
+fviz_pca_biplot(pca_analysis,
+                label = "var",
+                habillage = pca_data$age)
 ```
 
 ### 2. Fixed effect and random effect models
