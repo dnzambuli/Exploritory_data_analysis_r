@@ -1268,13 +1268,173 @@ if(pois_diff < tol){
 
 Introduces a dispersion parameter, similar to the negative binomial model for count data.
 
+Quasi-binomial regression is applied when analyzing binomial data with excessive variability. It's commonly used in situations where the assumption of equidispersion in the binomial model does not hold.
+
+#### a. Test for the viability of variables 
+
+```{r}
+var_ratio = function(x){
+  v_ra = var(x)/ mean(x)
+  # Check if the variance-to-mean ratio exceeds a certain threshold (e.g., 1)
+if (v_ra > 1) {
+  out = "The variance-to-mean ratio suggests potential overdispersion, suitable for quasi-binomial regression.\n"
+} else {
+ out = "The variance-to-mean ratio does not indicate significant overdispersion.\n"
+}
+return(out)
+}
+```
+
+```{r}
+quasi_binom_data = linear_regress_data
+quasi_binom_test = neg_binom_test
+```
+
+```{r}
+# binomial columns 
+quasi_col = c("retire", "gender", "tollfree", "churn")
+for(i in 1:length(quasi_col)){
+  print(var_ratio(
+    as.numeric(
+      as.character(quasi_binom_data[[ quasi_col[i]]])
+    )
+  ))
+}
+```
+
+There is no suitable variable for quasi-binomial data as `the variance-to-mean ratio does not indicate significant overdispersion for any of the variables`
+
 ## 6. Non Parametric tests
 
 ### 1. sign rank test = one-sample t-test, one-sample z-test
 
-### 2. wilcoxcon sign rank test = paired t-test
+```{r}
+wilkox_begin_ind = sample(nrow(wilkox_train), 70, replace = FALSE)
+wilkox_begin = wilkox_train[wilkox_begin_ind,]
+```
+
+```{r}
+library(dplyr)
+wilkox_num = colnames(wilkox_begin %>%
+                        select_if(is.numeric))
+wilkox_num
+```
+
+Compares the median of a single sample of paired observations to a hypothetical median (usually 0, assuming no difference).
+
+**Assumption**: The differences between paired observations are symmetrically distributed.
+
+**Z-test**:
+
+-   **Purpose**: Tests the difference between a sample mean and a known population mean when the population standard deviation is known
+
+because the sample size is `> 30` so the z-test is chosen
+
+```{r}
+z_t_test = function(samp_mn, pop_mn, pop_sd, samp_size){
+  z_score = (samp_mn - pop_mn)/ (pop_sd/ sqrt(samp_size))
+  t_score = 2* (1 - pnorm(abs(z_score)))
+  out = paste("z-score is: ", z_score)
+  out = paste(out,"t-score is: ")
+  out = paste(out, t_score)
+  return(out)
+}
+```
+
+```{r}
+wilkox_pop = rbind(quasi_binom_data, quasi_binom_test)
+wilkox_pop_cols = wilkox_pop[, colnames(wilkox_pop) %in% wilkox_num]
+wilkox_samp_cols = wilkox_begin[, colnames(wilkox_pop) %in% wilkox_num]
+wilkox_pop_std = apply(wilkox_pop_cols, 2, sd)
+wilkox_samp_mn = apply(wilkox_samp_cols, 2, mean)
+wilkox_pop_mn = apply(wilkox_pop_cols, 2, mean)
+
+# find the z and p scores
+for(i in 1:length(wilkox_pop_mn)){
+  cat("For: ",wilkox_num[i], " values are :\n")
+  print(z_t_test(wilkox_samp_mn[i], wilkox_pop_mn[i],wilkox_pop_std[i], 182))
+}
+```
+
+From these `z-scores` indicate how many standard deviations the data in each column is above `mean`
+
+The `t-score` indicates how close the data is to the `hypothesised` mean. The standard errors from mean.
+
+### 2. wilcoxc sign rank test = paired t-test
+
+A sample of `90` observations is made from both the training and test data sets.
+
+#### a. using Wilcox sign test
+
+```{r}
+wilkox_train = linear_regress_data
+wilkox_test = quasi_binom_test
+```
+
+#### b. Selecting paired samples
+
+```{r}
+wilkox_after_ind = sample(nrow(wilkox_test), 70, replace = FALSE)
+wilkox_after = wilkox_test[wilkox_after_ind,]
+```
+
+#### c. select the numeric columns
+
+```{r}
+for(col in wilkox_num){
+  wilkox_test = wilcox.test(wilkox_begin[[col]], wilkox_after[[col]], paired = TRUE)
+  cat("The wilcox test for ", col, "is: \n")
+  print(wilkox_test)
+}
+```
+
+The wilcox test indicates that the only values with p-values that are significantly smaller than `0.05` are `cardten` and `logcard`
+
+This means that for these values $h_0$ (there difference in the two paired samples of begin and after is not statistically significant) of wilcox sign test is rejected indicating a significant difference in the observatservations of the paired samples.
 
 ### 3. mann u test = independent t-test
+
+#### a. ordinal data
+
+Whitney-Wilcoxon test, is a non-parametric statistical test used to determine if there is a significant difference between two independent groups.
+
+When dealing with ordinal or non-normally distributed data.
+
+The Mann-Whitney U test doesn't assume the data are normally distributed. It assesses whether the distributions of the two groups are different based on their ranks
+
+$h_0$ Assumes no difference between the medians of the two groups
+
+$h_1$ difference between the medians of the two groups
+
+```{r}
+ordi_data = c(6, 7, 3, 2)
+col_ordi = colnames(quasi_binom_data[, ordi_data])
+col_ordi
+```
+
+#### b. Group reside
+
+reside is taken to mean how many people reside in a household
+
+reside 1 means small house, 0 means large house
+
+```{r}
+mann_u_data = quasi_binom_data
+mann_u_data$reside = ifelse(mann_u_data$reside < 4, 1,0) # selecting income for low residence houses
+group_1 = subset(mann_u_data, reside == 1)$income # selecting income for high residence houses
+group_2 = subset(mann_u_data, reside == 0)$income
+```
+
+#### c. Perform the mann-whitney U test
+
+```{r}
+mann_u_test = wilcox.test(group_1, group_2)
+mann_u_test
+```
+
+The p-value of `0.04782` is less than the threshold of `0.05` which indicates that the null hypothesis should be rejected.
+
+This means that there is a statistically significant difference in the income of individuals in low residence houses than in high residence house
 
 ### 4. Kruskal-wallis H-test = one way ANOVA
 
@@ -1286,7 +1446,7 @@ Introduces a dispersion parameter, similar to the negative binomial model for co
 
 ### 2. Fixed effect and random effect models
 
-### 3. assessing missingness types:
+### 3. assessing missing-ness types:
 
 #### a. MAR
 
