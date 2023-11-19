@@ -1270,7 +1270,7 @@ Introduces a dispersion parameter, similar to the negative binomial model for co
 
 Quasi-binomial regression is applied when analyzing binomial data with excessive variability. It's commonly used in situations where the assumption of equidispersion in the binomial model does not hold.
 
-#### a. Test for the viability of variables 
+#### a. Test for the viability of variables
 
 ```{r}
 var_ratio = function(x){
@@ -1468,7 +1468,7 @@ This means that the there is not sufficient evidence to conclude significant dif
 
 Used to assess the relationship between two continuous variables but how they quantify and evaluate this relationship
 
-#### a. Pearson 
+#### a. Pearson
 
 Assumes a linear relationship between variables and requires both variables to be normally distributed.
 
@@ -1484,13 +1484,13 @@ Values range from -1 to 1.
 
 #### b. Spearman rank correlation
 
-Doesn\'t assume linearity or normality and is suitable for ordinal or non-normally distributed data.
+Doesn't assume linearity or normality and is suitable for ordinal or non-normally distributed data.
 
 Measures the strength and direction of monotonic relationships between variables.
 
 Similar to Pearson, but `it measures the monotonic relationship rather than the linear relationship`. It's robust against outliers
 
-#### c. Assessment 
+#### c. Assessment
 
 ```{r}
 pearson_spearman = function(x){
@@ -1550,13 +1550,13 @@ pca_analysis = prcomp(pca_data,
 summary(pca_analysis)
 ```
 
-#### c. elements of the pca 
+#### c. elements of the pca
 
 ```{r}
 names(pca_analysis)
 ```
 
-#### d. standard deviation of the components 
+#### d. standard deviation of the components
 
 ```{r}
 pca_analysis$sdev
@@ -1611,12 +1611,64 @@ fviz_pca_biplot(pca_analysis,
 
 ### 2. Fixed effect and random effect models
 
+**Fixed/ factor effect models** These models consider categorical variables (factors) with a fixed set of levels or categories
+
+```{r}
+factor_data = linear_regress_data
+factor_data = factor_data %>% select_if(is.factor)
+factor_data$age = linear_regress_data$age
+```
+
+```{r}
+fact_eff_mod = lm(age~., factor_data)
+summary(fact_eff_mod)
+```
+
+`churn` and `retirement` are the key factors that can help predict a person's age
+
+**Random effect model** models are used when dealing with categorical variables or factors whose levels are sampled from a larger population.
+
+```{r}
+rem_data = linear_regress_data
+rem_data = data.frame(sapply(rem_data[, c(2, 5, 7, 10)], as.factor))
+rem_data$age = linear_regress_data$age 
+```
+
+```{r}
+library(lme4)
+rem_mod = lmer(age~(1|tenure ), data = rem_data) 
+summary(rem_mod)
+```
+
 ### 3. assessing missing-ness types:
 
 #### a. MAR
 
-#### b. CMAR
+Suggests that the probability of missingness might depend on observed data but not on unobserved data after conditioning on other observed variables.
+
+`mar and mnar` are performed by imputation and assessing the change due to imputation, for the linear regression data imputation causes no change in the spread of the data.
+
+#### **b. CMAR**
+
+It suggests that the missingness may depend on unobserved variables, making it more complex to handle compared to MAR
 
 #### c. MNAR
 
+MNAR implies that the missing values are systematically different from observed values and can introduce bias if not handled properly.
+
 #### d. GEE regression
+
+Useful when the correlation structure within the data needs to be considered, and it provides population-averaged estimates while accounting for within-subject correlation
+
+```{r}
+library(geepack)
+
+# Fit GEE model
+gee_model <- geeglm(age ~ ., data = factor_data,id = gender,
+                    family =poisson())
+summary(gee_model)
+
+
+```
+
+Gee predicts age using `retire` , `gender`, and `churn` with `custcat` as the key factors influencing `age`. This is by using gender as the grouping variable
